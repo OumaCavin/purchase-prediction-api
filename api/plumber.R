@@ -12,7 +12,7 @@ library(caret)
 library(dplyr)
 
 # Load model using environment variable with verification
-model_path <- Sys.getenv("MODEL_PATH", "api/purchase_model.rds")
+model_path <- Sys.getenv("MODEL_PATH")
 if (!file.exists(model_path)) {
   message("Attempting to find model at: ", normalizePath(model_path))
   stop("Model file not found at: ", model_path)
