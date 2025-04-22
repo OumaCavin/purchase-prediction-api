@@ -6,6 +6,7 @@ services:
     buildCommand: |
       Rscript -e "install.packages(c('plumber', 'dplyr', 'caret'), repos='https://cloud.r-project.org', Ncpus=2)"
       Rscript -e "if (!file.exists('api/purchase_model.rds')) { stop('Model file missing!') }"
+      Rscript -e "print(R.version)"
     startCommand: Rscript -e "plumber::plumb('api/plumber.R')$run(port=$PORT, host='0.0.0.0')"
     envVars:
       - key: R_ENABLE_JIT
