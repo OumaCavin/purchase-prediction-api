@@ -6,8 +6,8 @@
 *.Rproj
 
 # Model and data files (except your production model)
-*.rds
-!api/purchase_model.rds  # Keep your production model
+#*.rds
+#!api/purchase_model.rds  # Keep your production model
 *.csv
 *.xlsx
 
