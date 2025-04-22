@@ -11,12 +11,14 @@ library(plumber)
 library(caret)
 library(dplyr)
 
-# Load model using environment variable with validation
+# Load model using environment variable with verification
 model_path <- Sys.getenv("MODEL_PATH", "api/purchase_model.rds")
 if (!file.exists(model_path)) {
-  stop(paste("Model file not found at:", model_path))
+  message("Attempting to find model at: ", normalizePath(model_path))
+  stop("Model file not found at: ", model_path)
 }
 model <- readRDS(model_path)
+
 
 # Verify JIT status
 jit_status <- as.numeric(Sys.getenv("R_ENABLE_JIT", "0"))
@@ -151,15 +153,9 @@ function(pr) {
     spec
     })
 }
-# At bottom of plumber.R
-if (Sys.getenv("RENDER") == "true") {
-  pr <- plumber::plumb("api/plumber.R")
-  pr$run(port=as.numeric(Sys.getenv("PORT")), host="0.0.0.0")
-}
 
-
-  
-
+pr <- plumber::plumb(environment())
+pr$run(host = '0.0.0.0', port = as.numeric(Sys.getenv("PORT", 8000)))
 
 
 

@@ -1,19 +1,11 @@
-services:
+services:   # render.yaml (Docker-only version)
   - type: web
-    dockerfile: Dockerfile
     name: purchase-prediction-api
-    runtime: r  # Explicitly declare R runtime
-    env: r
-    buildCommand: |
-      Rscript -e "install.packages(c('plumber', 'dplyr', 'caret'), repos='https://cloud.r-project.org', Ncpus=2)"
-      Rscript -e "if (!file.exists('api/purchase_model.rds')) { stop('Model file missing!') }"
-      Rscript -e "print(R.version)"
-    startCommand: Rscript -e "plumber::plumb('api/plumber.R')$run(port=$PORT, host='0.0.0.0')"
+    dockerfile: Dockerfile  # Render will use ONLY this
     envVars:
       - key: R_ENABLE_JIT
-        value: 3
-      - key: MODEL_PATH
-        value: /opt/render/project/src/api/purchase_model.rds   
+        value: "3"
+      - key: PORT
+        value: "8000"  # Must match Dockerfile EXPOSE
     healthCheckPath: /health
     autoDeploy: true
-    plan: free  # For paid tier: change to "standard" 
