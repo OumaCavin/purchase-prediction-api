@@ -11,14 +11,13 @@ library(plumber)
 library(caret)
 library(dplyr)
 
-# Load model using environment variable with verification
-model_path <- Sys.getenv("MODEL_PATH")
+# Load model with robust path handling
+model_path <- Sys.getenv("MODEL_PATH", "/app/api/purchase_model.rds")
+model_path <- normalizePath(model_path, mustWork = FALSE)
 if (!file.exists(model_path)) {
-  message("Attempting to find model at: ", normalizePath(model_path))
-  stop("Model file not found at: ", model_path)
+  stop(paste("Model file not found at:", model_path))
 }
 model <- readRDS(model_path)
-
 
 # Verify JIT status
 jit_status <- as.numeric(Sys.getenv("R_ENABLE_JIT", "0"))
@@ -28,18 +27,18 @@ if (jit_status >= 2) {
   warning("JIT disabled - performance may be affected")
 }
 
-
-#* Log all requests - incoming request data
+#* Log all requests
 #* @filter logger
 function(req) {
   cat(
-    "Time:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n",
-    "Request:", req$REQUEST_METHOD, req$PATH_INFO, "\n",
-    "User Agent:", req$HTTP_USER_AGENT, "\n",
-    "IP:", req$REMOTE_ADDR, "\n\n",
-    sep = " "
+    sprintf("[%s] %s %s - %s\n",
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      req$REQUEST_METHOD,
+      req$PATH_INFO,
+      req$REMOTE_ADDR
+    )
   )
-  plumber::forward()
+  forward()
 }
 
 #* Health check endpoint
@@ -51,115 +50,92 @@ function() {
     model = list(
       version = "1.0",
       loaded = exists("model"),
-      status = ifelse(file.exists(model_path), "OK", "MISSING"),
-      path = Sys.getenv("MODEL_PATH", "default")
+      path = model_path,
+      size = file.size(model_path)
     ),
     system = list(
       r_version = R.version.string,
-      jit_enabled = as.numeric(Sys.getenv("R_ENABLE_JIT", "0"))
-    ),
-    system = Sys.info()["sysname"],
-    render = TRUE
+      jit_enabled = jit_status,
+      platform = R.version$platform
+    )
   )
 }
 
-
-
 #* Predict purchase probability
 #* @param Age:int Customer age (18-100)
-#* @param Gender:enum["Male","Female"] Customer gender
+#* @param Gender:character Customer gender (Male/Female)
 #* @param EstimatedSalary:number Monthly salary (KES)
 #* @response 200 Returns prediction results
 #* @response 400 Bad request if validation fails
 #* @post /predict
 function(Age, Gender, EstimatedSalary, res) {
   tryCatch({
-    # Convert inputs to correct types (critical for JSON parsing)
+    # Convert and validate inputs
     Age <- as.numeric(Age)
     EstimatedSalary <- as.numeric(EstimatedSalary)
     Gender <- as.character(Gender)
     
-    # Input validation
-    if (is.na(Age)) {
+    if (is.na(Age) || Age < 18 || Age > 100) {
       res$status <- 400
-      return(list(success = FALSE, error = "Age must be a number"))
+      return(list(error = "Age must be a number between 18-100"))
     }
-    if (is.na(EstimatedSalary)) {
+    if (is.na(EstimatedSalary) || EstimatedSalary < 0) {
       res$status <- 400
-      return(list(success = FALSE, error = "Salary must be a number"))
-    }
-    if (Age < 18 || Age > 100) {
-      res$status <- 400
-      return(list(success = FALSE, error = "Age must be between 18 and 100"))
-    }
-    if (EstimatedSalary < 0) {
-      res$status <- 400
-      return(list(success = FALSE, error = "Salary must be positive"))
+      return(list(error = "Salary must be a positive number"))
     }
     if (!Gender %in% c("Male", "Female")) {
       res$status <- 400
-      return(list(success = FALSE, error = "Gender must be 'Male' or 'Female'"))
+      return(list(error = "Gender must be 'Male' or 'Female'"))
     }
     
-    # Prepare data (match training format exactly)
-    new_data <- data.frame(
-      Age = Age,
-      Gender = ifelse(Gender == "Male", 1, 0),
-      EstimatedSalary = EstimatedSalary
+    # Make prediction
+    prediction <- predict(
+      model,
+      data.frame(
+        Age = Age,
+        Gender = ifelse(Gender == "Male", 1, 0),
+        EstimatedSalary = EstimatedSalary
+      ),
+      type = "response"
     )
     
-    # Make prediction
-    prediction <- predict(model, new_data, type = "response")
-    
-    # Return formatted response
+    # Return response
     list(
       success = TRUE,
       probability = round(prediction, 4),
-      prediction = ifelse(prediction > 0.5, "Likely to purchase", "Unlikely to purchase"),
-      decision_boundary = 0.5,
-      model_version = "1.0",
-      render_deployment = TRUE
+      prediction = ifelse(prediction > 0.5, 1, 0),
+      model_version = "1.0"
     )
     
   }, error = function(e) {
-    # Handle unexpected errors
     res$status <- 500
     return(list(
-      success = FALSE,
       error = "Internal server error",
-      details = conditionMessage(e),
-      timestamp = Sys.time()
+      details = conditionMessage(e)
     ))
   })
 }
 
 #* @plumber
 function(pr) {
-  # Enable Swagger UI
   pr %>%
     pr_set_docs("swagger") %>%
     pr_set_api_spec(function(spec) {
-      spec$components$schemas$PredictionResponse <- list(
-        type = "object",
-        properties = list(
-          probability = list(type = "number"),
-          prediction = list(type = "integer"),
-          model_version = list(type = "string")
-        )
+      spec$info$description <- paste(
+        "Production API |",
+        "Model:", basename(model_path),
+        "| JIT Level:", jit_status
       )
-	  spec$info$description  <- paste(
-        "Optimized for Render.com |",
-        "JIT Level:", Sys.getenv("R_ENABLE_JIT", "0"))
-    spec
+      spec
     })
 }
 
-pr <- plumber::plumb(environment())
-pr$run(host = '0.0.0.0', port = as.numeric(Sys.getenv("PORT", 8000)))
-
-
-
-
-
-
-
+# Start server if not in test environment
+if (!identical(Sys.getenv("TEST_ENV"), "true")) {
+  pr <- plumber::plumb(environment())
+  pr$run(
+    host = '0.0.0.0',
+    port = as.numeric(Sys.getenv("PORT", 8000)),
+    swagger = TRUE
+  )
+}

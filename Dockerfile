@@ -29,6 +29,3 @@ EXPOSE 8000
 # Run the API
 CMD ["Rscript", "/app/api/plumber.R"]
 
-
-
-
