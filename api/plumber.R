@@ -151,8 +151,11 @@ function(pr) {
     spec
     })
 }
------------------
-
+# At bottom of plumber.R
+if (Sys.getenv("RENDER") == "true") {
+  pr <- plumber::plumb("api/plumber.R")
+  pr$run(port=as.numeric(Sys.getenv("PORT")), host="0.0.0.0")
+}
 
 
   
