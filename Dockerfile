@@ -17,7 +17,7 @@ RUN mkdir -p /app/api
 
 # Copy required files
 COPY api/plumber.R /app/api/
-COPY api/purchase_model.rds /app/api/  # This is the critical path
+COPY api/purchase_model.rds /app/api/  
 
 # Verify file exists
 RUN ls -la /app/api/ && \
