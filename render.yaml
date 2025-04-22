@@ -1,18 +1,17 @@
 services:
   - type: web
     name: purchase-prediction-api
-    runtime: r
+    runtime: r  # Explicitly declare R runtime
     env: r
     buildCommand: |
-      R -e "install.packages('plumber', repos='https://cloud.r-project.org')"
-      R -e "install.packages('dplyr', repos='https://cloud.r-project.org')"
-      R -e "if (!requireNamespace('caret', quietly = TRUE)) install.packages('caret', repos='https://cloud.r-project.org')"
-    startCommand: R -e "plumber::plumb('api/plumber.R')$run(port=$PORT, host='0.0.0.0')"
+      Rscript -e "install.packages(c('plumber', 'dplyr', 'caret'), repos='https://cloud.r-project.org', Ncpus=2)"
+      Rscript -e "if (!file.exists('api/purchase_model.rds')) { stop('Model file missing!') }"
+    startCommand: Rscript -e "plumber::plumb('api/plumber.R')$run(port=$PORT, host='0.0.0.0')"
     envVars:
       - key: R_ENABLE_JIT
-        value: 3  # Production should use level 3
+        value: 3
       - key: MODEL_PATH
-        value: /opt/R/purchase_model.rds  # Absolute path recommended
+        value: /opt/render/project/src/api/purchase_model.rds   
     healthCheckPath: /health
     autoDeploy: true
-    plan: free  # For paid tier: change to "standard"
+    plan: free  # For paid tier: change to "standard" 

@@ -10,6 +10,7 @@
 #!api/purchase_model.rds  # Keep your production model
 *.csv
 *.xlsx
+*copy*
 
 # Environment and secret files
 .env
