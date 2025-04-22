@@ -1,5 +1,6 @@
 services:
   - type: web
+    dockerfile: Dockerfile
     name: purchase-prediction-api
     runtime: r  # Explicitly declare R runtime
     env: r
