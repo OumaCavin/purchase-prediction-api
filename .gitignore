@@ -1,0 +1,31 @@
+# R-specific files
+.Rhistory
+.RData
+.Rproj.user
+.Ruserdata
+*.Rproj
+
+# Model and data files (except your production model)
+*.rds
+!api/purchase_model.rds  # Keep your production model
+*.csv
+*.xlsx
+
+# Environment and secret files
+.env
+.Renviron
+secrets/
+config.yml
+
+# System files
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE specific files
+.vscode/
+.idea/
+
+# Render specific
+render.yaml.local
+deployments/
